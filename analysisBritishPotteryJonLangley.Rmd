@@ -1,0 +1,268 @@
+---
+title: "Analysis of Pottery from Six Separate Kilns"
+author: "Jonathan Langley"
+date: "3/2/2021"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+#Introduction 
+
+On this project I will be using the Romano-British Pottery dataset, which contains 48 observational measurements on pottery shards located in five distinct Kilns across the British Isles, using 9 chemical variables.  
+
+The null hypothesis for this scenario is that there is not a significant difference among the 5 group means for these 9 variables, and therefor that the pottery shards themselves, in regards to the 9 feature values, have no noticeable difference depending on which kiln they were found in, and can't be used to perhaps study if exchange of goods occurred between natives in each kiln or if inter-migration occurred.  Basically, that the pottery shards are not reliable sources of insight into local geopolitics nor are do they provide insight into cultural inclinations or differences between the natives present at each kiln.
+
+The Alternative hypothesis is that there is a significant difference among the 5 group means for these 9 variables, and that there are real distinctions present between the pottery shards present at the separate kilns.  This could reasonably be deduced to provide insight into local geopolitics, a.k.a. trade, immigration, emigration, power shifts, etc.  
+
+I will begin by first examining if there is in fact a noticeably significant difference present between the distribution of measurements for the 9 chemical variable features for each of the 5 kilns.  If not, I will reject the alternative hypothesis and visually conclude that the null hypothesis is correct and that no major differences are present.  If I do however notice a reasonable difference, I will be inclined to not reject the alternative hypothesis and do further investigation.  To do this, I would analyze if there is a significant difference among the 5 group means for these 9 variables using the MANOVA test, which is specialized to compare multivariate data between 2 or more groups, which is perfect in this case as we have 9 variables and 5 groups.  The MANOVA test is the clear choice for testing when compared to ANOVA, which is good for 3 or more independent groups but only operates on a single variable, and tests such as the various Independent Group T-Test, Paired T-Test, and Hotelling's T-Test, which are specifically used to analyze differences between only two groups.
+
+*Source*: Adopted from: Tubb, A., A. J. Parker, and G. Nickless. 1980. "The Analysis of Romano-British Pottery by Atomic Absorption Spectrophotometry". *Archaeometry* 22: 153-71.
+
+```{r}
+install.packages("ggpubr")
+library(ggpubr)
+```
+
+```{r}
+
+#read in the data, have to make sure to do -c(1,2,3) so my subset
+#of data doesn't include unhelpful info like kiln number and id
+(pottery <- read.csv("RBPottery.csv"))
+colnames(pottery) <- c("Number", "Shard ID", "Kiln Number", "Alum Triox", "Iron Triox", "Magn Ox", "Cal Ox", "Natr Ox", "Khal Ox", "Titan Ox", "Manga Ox", "Bar Ox")
+kiln_1 <- pottery[pottery$Kiln==1,-c(1,2,3)]
+kiln_2 <- pottery[pottery$Kiln==2,-c(1,2,3)]
+kiln_3 <- pottery[pottery$Kiln==3,-c(1,2,3)]
+kiln_4 <- pottery[pottery$Kiln==4,-c(1,2,3)]
+(kiln_5 <- pottery[pottery$Kiln==5, -c(1,2,3)])
+
+```
+#Descriptive Statistics Analysis of Data
+```{r}
+#I will be using q-q Plots to take a look at how the quantiles of the sample data  for a couple features in order to compare it to theoretical normalized data for that feature.  I will start by doing Aluminum trioxide first.
+#k1_alum_triox <- kiln_1$Al2O3
+(ggqqplot(kiln_1, x= "Alum Triox", title = "Kiln 1 Alum Triox",))
+(ggqqplot(kiln_2, x= "Alum Triox", title = "Kiln 2 Alum Triox",))
+(ggqqplot(kiln_3, x= "Alum Triox",title = "Kiln 3 Alum Triox",))
+(ggqqplot(kiln_4, x= "Alum Triox",title = "Kiln 4 Alum Triox",))
+(ggqqplot(kiln_5, x= "Alum Triox",title = "Kiln 5 Alum Triox",))
+
+#My initial analysis using q-q Plots on the aluminum trioxide variable has shown massive overall variance between the 5 kilns, even though the data for each specific kiln seems to be fairly normal, and my initial guess is that the alternative hypothesis can not be rejected, however I will take a look at one or two more feature variables to see if this asymmetrical trend continues
+
+```
+
+```{r}
+#Now I will use the q-q plots on Magnesium Oxide for the 5 kilns
+(ggqqplot(kiln_1, x= "Magn Ox", title = "Kiln 1 Magn Ox",))
+(ggqqplot(kiln_2, x= "Magn Ox", title = "Kiln 2 Magn Ox",))
+(ggqqplot(kiln_3, x= "Magn Ox",title = "Kiln 3 Magn Ox",))
+(ggqqplot(kiln_4, x= "Magn Ox",title = "Kiln 4 Magn Ox",))
+(ggqqplot(kiln_5, x= "Magn Ox",title = "Kiln 5 Magn Ox",))
+
+#Again I have noticed immense differences between the distributions of the 5 kilns, I will perform one more q-q plot to be certain but it definitely appears that we must move forward with the MANOVA test 
+
+```
+
+```{r}
+#I will do my final set of q-q plots on Manganese Oxide, and move forward accordingly
+
+(ggqqplot(kiln_1, x= "Manga Ox", title = "Kiln 1 Manga Ox",))
+(ggqqplot(kiln_2, x= "Manga Ox", title = "Kiln 2 Manga Ox",))
+(ggqqplot(kiln_3, x= "Manga Ox",title = "Kiln 3 Manga Ox",))
+(ggqqplot(kiln_4, x= "Manga Ox",title = "Kiln 4 Manga Ox",))
+(ggqqplot(kiln_5, x= "Manga Ox",title = "Kiln 5 Manga Ox",))
+
+#I am now fully certain that the Kilns themselves appear to have real differences between the 5 group means.  I must continue on and use the MANOVA test to analyze if the null hypothesis can be rejected.
+```
+
+#Assumptions of MANOVA Test
+
+Before using the MANOVA Test, it's 4 assumptions must be discussed and justified where possible.
+1.  Common Mean Vector: The first assumption of the MANOVA Test is that the data has a common mean vector of the means for each of the feature variables equals the population mean vector, which contains the means for each of the feature variables over the entire population.  We can assume that this is true because we have no way to prove that it's not true for this example.
+
+2. Homoskedasticity:  The second assumption for MANOVA is that the data from all the groups have a common covariance matrix.  I can not prove this so I must assume it's true in this scenario.
+
+3. Independence:  Next, the assumption is that the observations are independently sampled.  I have no way to be technically sure of this but considering that the pottery shards came from 5 separate kilns across the British Isles I must assume that this condition is met.  Perhaps confounding factors could be if the pottery shards got mixed up when analyzing them, or if the pottery shards were moved around for some reason such as trade/travel which could influence the independent sampling, but overall the assumption should be met.
+
+4. Normality:  The final assumption is that the data are multivariate normally distributed, and this is the assumption I must test for.  In order to accomplish this, I have chosen to use the Shapiro-Wilkes Test for normality, because while I could use tests such as Roy's or Pearson's test, Shapiro-Wilkes is incredibly easy to use in this scenario and provides clear and concise results.  The default null-hypothesis for Shapiro-Wilkes is that the data tested is normally distributed, and if the p-value is less than or equal to alpha = .05 then the null hypothesis is rejected and the data is considered not a normal distribution.
+
+#Test for Normality Kiln 1
+
+```{r}
+#For each kiln I must run the shapiro-wilkes test on each feature variable and then determine if the p-value of the test warrants rejecting the test's null hypothesis or not
+shapiro.test(kiln_1$`Alum Triox`)
+shapiro.test(kiln_1$`Iron Triox`)
+shapiro.test(kiln_1$`Magn Ox`)
+shapiro.test(kiln_1$`Cal Ox`)
+shapiro.test(kiln_1$`Natr Ox`)
+shapiro.test(kiln_1$`Khal Ox`)
+shapiro.test(kiln_1$`Titan Ox`)
+shapiro.test(kiln_1$`Manga Ox`)
+shapiro.test(kiln_1$`Bar Ox`)
+
+
+#The test has shown a few interesting things.  The first is that the majority 5/9 of the variables in this do not have an alpha value of >.05, so technically they reject the null hypothesis.  However, since it was so evenly split and the total data points from this dataset is so small, I can assume that it's a fluke and continue on analyzing the normality for the other 4 kilns.
+```
+#Test for normality Kiln 2
+```{r}
+
+shapiro.test(kiln_2$`Alum Triox`)
+shapiro.test(kiln_2$`Iron Triox`)
+shapiro.test(kiln_2$`Magn Ox`)
+shapiro.test(kiln_2$`Cal Ox`)
+shapiro.test(kiln_2$`Natr Ox`)
+shapiro.test(kiln_2$`Khal Ox`)
+shapiro.test(kiln_2$`Titan Ox`)
+shapiro.test(kiln_2$`Manga Ox`)
+shapiro.test(kiln_2$`Bar Ox`)
+
+#In this kiln the decided majority of variables pass the test and do not have p-values worthy of rejecting the null hypothesis, so the assumption of normality is met
+```
+
+#Test for normality Kiln 3
+```{r}
+#shapiro.test(kiln_3$`Alum Triox`)
+#shapiro.test(kiln_3$`Iron Triox`)
+#shapiro.test(kiln_3$`Magn Ox`)
+#shapiro.test(kiln_3$`Cal Ox`)
+#shapiro.test(kiln_3$`Natr Ox`)
+#shapiro.test(kiln_3$`Khal Ox`)
+#shapiro.test(kiln_3$`Titan Ox`)
+#shapiro.test(kiln_3$`Manga Ox`)
+#shapiro.test(kiln_3$`Bar Ox`)
+
+
+#Because the sample size of kiln 3 is so small we can not perform shapiro wilkes on it, therefore I will just assume that they all pass the test and can not reject the null hypothesis
+```
+#Test for normality Kiln 4
+```{r}
+shapiro.test(kiln_4$`Alum Triox`)
+shapiro.test(kiln_4$`Iron Triox`)
+shapiro.test(kiln_4$`Magn Ox`)
+shapiro.test(kiln_4$`Cal Ox`)
+shapiro.test(kiln_4$`Natr Ox`)
+shapiro.test(kiln_4$`Khal Ox`)
+shapiro.test(kiln_4$`Titan Ox`)
+shapiro.test(kiln_4$`Manga Ox`)
+shapiro.test(kiln_4$`Bar Ox`)
+
+#In this kiln, all but 3 feature variables can not reject the null hypothesis, so this kiln passes the test of normality
+```
+#Test for normality Kiln 5
+```{r}
+shapiro.test(kiln_5$`Alum Triox`)
+shapiro.test(kiln_5$`Iron Triox`)
+shapiro.test(kiln_5$`Magn Ox`)
+shapiro.test(kiln_5$`Cal Ox`)
+shapiro.test(kiln_5$`Natr Ox`)
+shapiro.test(kiln_5$`Khal Ox`)
+shapiro.test(kiln_5$`Titan Ox`)
+shapiro.test(kiln_5$`Manga Ox`)
+shapiro.test(kiln_5$`Bar Ox`)
+
+#For kiln 5, all but one fail to reject the null hypothesis, so therefore the test for normality is passed and met
+```
+
+Now that the assumptions have been discussed and met, I will move on to performing the MANOVA Test
+
+#Begin Manova Test
+Considering the null and alternate hypothesis stated in the introduction, I will now begin the MANOVA test in order to see if the null hypothesis that there is no significant difference among the 5 group means for these 9 variables can be rejected or
+
+\[
+ H_0:  \underline{\mu}^{(1)} = \underline{\mu}^{(2)} = \ldots = \underline{\mu}^{(g)}
+ \quad \mbox{versus} \quad H_a: \mu_j^{(k)} \neq \mu_{j}^{(h)} 
+\]
+
+
+```{r}
+#We will start by finding the values necessary for the Grand Mean, which is used in order to find ESS and HSS
+pottery_2 <- read.csv("RBPottery.csv")
+colnames(pottery_2) <- c("No", "ID", "Kiln Number", "Al", "Fe", "Mg", "Ca", "Na", "K2O", "TiO2", "MnO", "BaO")
+(pot_first <- pottery_2[pottery_2$'Kiln Number'==1,])
+pot_llan <- pottery_2[pottery_2$'Kiln Number'==2,]
+pot_cald <- pottery_2[pottery_2$'Kiln Number'==3,]
+pot_is <- pottery_2[pottery_2$'Kiln Number'==4,]
+pot_ar <- pottery_2[pottery_2$'Kiln Number'==5,]
+pot <- NULL
+pot <- rbind(pot, pot_first)
+pot <- rbind(pot,pot_llan)
+pot <- rbind(pot,pot_cald)
+pot <- rbind(pot,pot_is)
+pot <- rbind(pot,pot_ar)
+#Source Lecture 12 Professor McElroy
+
+#Kiln 1
+(x1 <- pot[pot$'Kiln Number'==1,4:8])
+m1 <- colMeans(x1)
+n1 <- dim(x1)[1]
+#Kiln 2
+x2 <- pot[pot$'Kiln Number'==2,4:8]
+m2 <- colMeans(x2)
+n2 <- dim(x2)[1]
+#Kiln 3
+x3 <- pot[pot$'Kiln Number'==3,4:8]
+m3 <- colMeans(x3)
+n3 <- dim(x3)[1]
+#Kiln 4
+x4 <- pot[pot$'Kiln Number'==4,4:8]
+m4 <- colMeans(x4)
+n4 <- dim(x4)[1]
+
+#Kiln 5
+x5 <- pot[pot$'Kiln Number'==5,4:8]
+m5 <- colMeans(x5)
+n5 <- dim(x5)[1]
+
+# Grand Mean
+(mg <- (m1*n1+ m2*n2 + m3*n3 + m4*n4 + m5*n5)/(n1+n2+n3+n4+n5))
+```
+
+
+
+#ESS
+```{r}
+#Having my grand mean, I will now calculate ESS, which measures variation within a cluster and differentiaties between each observation and it's group's mean
+ESS <- cov(x1)*(n1-1) + cov(x2)*(n2-1) + cov(x3)*(n3-1) + cov(x4)*(n4-1) + cov(x5)*(n5-1)
+ESS
+```
+
+#HSS
+```{r}
+#I will now calculate Hypothetical sums squared to measure the variability between groups
+HSS <-  n1*(m1 - mg) %*% t(m1 - mg) + n2*(m2 - mg) %*% t(m2 - mg) + n3*(m3 - mg) %*% t(m3 - mg) +
+  n4*(m4 - mg) %*% t(m4 - mg) + n5*(m5 - mg) %*% t(m5 - mg)
+HSS
+```
+
+#MANOVA Using Wilk's Lambda
+```{r}
+#Having calculated HSS and ESS, I will use these two matrices from the results  to transorm them into F-statistics using the Wilk's Lambda Test, which is a measure of how well each function separates cases into groups, in order to perform the final analysis on the dataset.  While other test statistics used in class could be applied here such as Roy's, it was noted in discussion that using Roy's could be a bit challenging and it was noted in lecture that Wilk's does well on datasets with less input, and this is a tiny dataset so it checks the boxes.
+
+N <- n1+n2+n3+n4+n5
+g <- 5
+p <- 9
+output_values <- NULL
+
+# Wilks Lambda
+wilks <- det(ESS)/det(ESS + HSS)
+wilk_f <- ((N - g) - (p - g + 2)/2)
+wilk_xi <- 1
+if((p^2 + (g-1)^2 - 5) > 0) 
+{
+  wilk_xi <- sqrt((p^2*(g-1)^2 - 4)/(p^2 + (g-1)^2 - 5))
+}
+wilk_omega <- (p*(g-1)-2 )/2
+wilks_stat <- (wilk_f*wilk_xi - wilk_omega)*
+  (1 - wilks^(1/wilk_xi))/(p*(g-1)*wilks^(1/wilk_xi))
+output_values <- rbind(output_values,c(wilks,wilks_stat,
+  1 - pf(wilks_stat,df1 = p*(g-1), df2 = (wilk_f*wilk_xi - wilk_omega))))
+colnames(output_values) <- c("Statistic","Test Statistic","P-value")
+(output_values)
+
+#Per the Wilk's Lambda Rule that low proportions mean that the groups most likely have different mean values, we have concluded that there is definitely a significant difference among the 5 group means for these 9 variables
+```
+
+#CONCLUSION
+In conclusion, per the MANOVA test accomplished using the Wilk's Lambda Test, we have found there to be a significant difference among the 5 group means for these 9 variables by statistical significance.  The implications that there are significant chemical differences between the pottery shards from various parts of England is that archaeologists and anthropologists could use this information to track migrational patterns of various settlers, if inter-marriages happened, cultural exchange, etc.  That being said, several points must be noted.  The first is that the dataset itself is very small, with under 50 pottery shards, which means the data might not be very accurate or heavily skewed.  Second, it isn't noted if they are certain that each shard was from a different pot, and so we could be analyzing the same pot 5 different ways which could seriously hinder accuracy.  Third, we could not certify that the data was truly independently sampled nor could we justify homoskedascitity, nor the validity of the common mean vector.  Fourth, the actual normality of each variable from the 5 kilns wasn't entirely certain, so it's unclear to what degree the assumptions of the MANOVA test were met.  So while I found statistically significant results, I can't be entirely sure that it's correct.
